@@ -1,0 +1,18 @@
+DeviceDetails.txt
+
+Parameter                   | My Device         | Lab Device
+Driver                      | 6.5               | 6.0
+Runtime                     | 5.5               | 6
+Compute Capablity           | 2.1               | 3.0
+Multiprocessors             | 2                 | 2
+Cuda Cores                  | 48                | 192
+Clock Rate                  | 1.2 GHz           | 0.95 GHz
+Memory Rate                 | 0.9 GHz           | 2.0 GHz
+Cache(bytes)                | 131072            | 262144
+Constant Memory(bytes)      | 65536             | 65536
+Shared Memory(bytes)        | 49152             | 49152
+registers/block             | 32768             | 65536
+Max threads/multiprocessors | 1536              | 2048
+Max threads/block           | 1024              | 1024
+Max BlockDim(x,y,z)         | 1024,1024,64      | 1024,1024,64
+Max GridDim(x,y,z)          | 65535,65535,65535 | 2147483647,65535,65535
