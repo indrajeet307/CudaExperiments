@@ -1,14 +1,22 @@
 /*
-    Program perform matrix multiplication
-*/
+   Program perform matrix multiplication
+ */
 #include<stdio.h>
 #include<cuda.h>
 #include<stdlib.h>
+#include<sys/time.h>
 #define VAL_LIMIT 10
 #define DEBUG 0
-#define TILE_WIDTH 2
+#define TILE_WIDTH 32
 cudaError_t err;
-
+/*
+ *	@PRAM   : Number of rows and columns
+ *	@RETURN : Pointer to created Matrix
+ *	@DESC   :  
+ *	@SEE    :  
+ *	@TODO   : 
+ *	
+ */
 float* createMatrix(int r,int c)
 {
     float *temp;
@@ -16,6 +24,27 @@ float* createMatrix(int r,int c)
     return temp;
 }
 
+/*
+ *	@DESC   : Frees the memory allocated to the matrix
+ *	@PRAM   : pointer to the matrix
+ *	@RETURN : Nothing
+ *	@SEE    :  
+ *	@TODO   :  
+ *	
+ */
+void destroyMAtrix(float *mat)
+{
+    free(mat);
+}
+
+/*
+ *	@PRAM   : Device pointer, number of rows and columns
+ *	@RETURN : Nothing
+ *	@DESC   : Creates a matrix of float * rows * columns on device
+ *	@SEE    :  
+ *	@TODO   :  
+ *	
+ */
 void createMatrixDevice(float **m, int r, int c)
 {
     int size = sizeof(float)*r*c;
@@ -28,6 +57,14 @@ void createMatrixDevice(float **m, int r, int c)
     }
 }
 
+/*
+ *	@PRAM   : Host pointer, Device pointer, Number of rows and columns
+ *	@RETURN : Nothing
+ *	@DESC   : Copies data from host pointer to device pointer
+ *	@SEE    :  
+ *	@TODO   :  
+ *	
+ */
 void transferToDevice(float *hostptr, float *deviceptr, int r, int c)
 {
     int size = sizeof(float) * r*c;
@@ -43,14 +80,14 @@ void transferToDevice(float *hostptr, float *deviceptr, int r, int c)
 
 void transferFromDevice(float *hostptr, float *deviceptr, int r, int c)
 {
-        int size = sizeof(float) * r*c;
-        err = cudaSuccess;
-        err = cudaMemcpy(hostptr,deviceptr,size,cudaMemcpyDeviceToHost);
-        if (err != cudaSuccess)
-        {
-            fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
+    int size = sizeof(float) * r*c;
+    err = cudaSuccess;
+    err = cudaMemcpy(hostptr,deviceptr,size,cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
 }
 
 void initMatrix(float *m,int r,int c)
@@ -83,7 +120,7 @@ void matMul(float *A, float *B, float *C, int Ac, int Ar, int Br)
 
 }
 
-__global__
+    __global__
 void matMulKernel(float *A, float *B, float *C, int Ac, int Ar, int Br)
 {
     int row = blockIdx.x * TILE_WIDTH + threadIdx.x;
@@ -123,7 +160,7 @@ bool check(float *mat, float *mat2, int r, int c)
         for(int j=0;j<c;j++)
         {
             if( mat2[i*r+j] != mat[i*r+j])
-            return false;
+                return false;
         }
     }
     return true;
@@ -133,15 +170,15 @@ int main()
 {
     float *h_A, *h_B, *h_C,*h_D;
     float *d_A, *d_B, *d_C;
-    unsigned int Ar=512, Ac=1024;
-    unsigned int Br=1024, Bc=512;
-    unsigned int Cr=512, Cc=512;
+    unsigned int Ar=1024, Ac=1024;
+    unsigned int Br=1024, Bc=1024;
+    unsigned int Cr=1024, Cc=1024;
 
     h_A = createMatrix(Ar, Ac);
     h_B = createMatrix(Br, Bc);
     h_C = createMatrix(Cr, Cc);
     h_D = createMatrix(Cr, Cc);
-    
+
     initMatrix(h_A, Ar, Ac);
     initMatrix(h_B, Br, Bc);
 
@@ -167,10 +204,18 @@ int main()
 
     transferToDevice(h_A, d_A, Ar, Ac);
     transferToDevice(h_B, d_B, Br, Bc);
-
+    struct timeval st, et, dt;
+    gettimeofday(&st,NULL);
     pMatMul(d_A, d_B, d_C, Ac, Ar, Br);
+    gettimeofday(&et,NULL);
 
+    timersub(&et, &st, &dt);
+    printf("Time required %lf\n",dt.tv_sec * 1000.0 + dt.tv_usec/1000.0);
     transferFromDevice(h_D, d_C, Cr, Cc);
+
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
 
     if(DEBUG){
         printf("Matrix C:\n");
@@ -182,5 +227,8 @@ int main()
     else
         printf("Failed !! :( \n");
 
+    destroyMAtrix(h_A);
+    destroyMAtrix(h_B);
+    destroyMAtrix(h_C);
     return 0;
 }
