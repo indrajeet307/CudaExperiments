@@ -175,11 +175,16 @@ int main()
 {
     float *h_A, *h_B, *h_C,*h_D;
     float *d_A, *d_B, *d_C;
+    float milisecs;
     unsigned int Ar=1024, Ac=1024;
     unsigned int Br=1024, Bc=1024;
     unsigned int Cr=1024, Cc=1024;
 
     assert(Ac == Br);
+
+    cudaEvent_t start,stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     h_A = createMatrix(Ar, Ac);
     assert(h_A != NULL);
@@ -215,15 +220,18 @@ int main()
 
     transferToDevice(h_A, d_A, Ar, Ac);
     transferToDevice(h_B, d_B, Br, Bc);
-    struct timeval st, et, dt;
-    gettimeofday(&st,NULL);
-    pMatMul(d_A, d_B, d_C, Ac, Ar, Bc);
-    gettimeofday(&et,NULL);
 
-    timersub(&et, &st, &dt);
-    printf("Time required %lf\n",dt.tv_sec * 1000.0 + dt.tv_usec/1000.0);
+    cudaEventRecord(start);
+    pMatMul(d_A, d_B, d_C, Ac, Ar, Bc);
+    cudaEventRecord(stop);
+
+    
     transferFromDevice(h_D, d_C, Cr, Cc);
 
+
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milisecs,start,stop);
+    printf("Time required for parallel execution %f\n",milisecs);
 
     if(DEBUG){
         printf("Matrix D:\n");
