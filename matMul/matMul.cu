@@ -3,6 +3,7 @@
  */
 #include<stdio.h>
 #include<cuda.h>
+#include<assert.h>
 #include<stdlib.h>
 #include<sys/time.h>
 #define VAL_LIMIT 10
@@ -101,43 +102,47 @@ void initMatrix(float *m,int r,int c)
     }
 }
 
-void matMul(float *A, float *B, float *C, int Ac, int Ar, int Br)
+void matMul(float *A, float *B, float *C, int Aw, int Ah, int Bw)
 {
-    for( int i=0 ; i<Ar; i++)
+    for( int i=0 ; i<Ah; i++)
     {
-        for( int j=0; j<Ac; j++)
+        for( int j=0; j<Bw; j++)
         {
             float sum=0;
-            for( int k=0; k<Br; k++) 
+            for( int k=0; k<Aw; k++) 
             {
-                float a = A[i*Ac +k];
-                float b = B[k*Ar +j];
+                float a = A[i*Aw+k];
+                float b = B[k*Bw +j];
                 sum += a*b;
+                if(DEBUG)
+                    printf(" %d * %d +",i*Aw+k,k*Bw+j);
             }
-            C[i*Ac+j] = sum;
+            C[i*Bw+j] = sum;
+                if(DEBUG)
+                    printf("%d\n",i*Bw+j);
         }
     }
 
 }
 
-    __global__
-void matMulKernel(float *A, float *B, float *C, int Ac, int Ar, int Br)
+ __global__
+void matMulKernel(float *A, float *B, float *C, int Ac, int Ar, int Bc)
 {
     int row = blockIdx.x * TILE_WIDTH + threadIdx.x;
     int col = blockIdx.y * TILE_WIDTH + threadIdx.y;
     int sum = 0;
     for ( int i=0 ; i<Ar; i++)
     {
-        sum += A[row *Ac + i] * B[ i *Br + col];
+        sum += A[row *Ac + i] * B[ i *Bc + col];
     }
-    C[row*Ar+col] = sum;
+    C[row*Bc+col] = sum;
 }
 
-void pMatMul(float *A,float *B,float *C, int Ac, int Ar, int Br)
+void pMatMul(float *A,float *B,float *C, int Ac, int Ar, int Bw)
 {
     dim3 gridProp(ceil(Ac/TILE_WIDTH),ceil(Ar/TILE_WIDTH),1);
     dim3 blockProp(TILE_WIDTH,TILE_WIDTH,1);
-    matMulKernel<<<gridProp,blockProp>>>(A, B, C, Ac, Ar, Br);
+    matMulKernel<<<gridProp,blockProp>>>(A, B, C, Ac, Ar, Bw);
 }
 
 
@@ -147,7 +152,7 @@ void printMat(float *mat, int r, int c)
     {
         for(int j=0;j<c;j++)
         {
-            printf("%4.1f \t",mat[i*r+j]);
+            printf("%4.1f \t",mat[i*c+j]);
         }
         printf("\n");
     }
@@ -159,7 +164,7 @@ bool check(float *mat, float *mat2, int r, int c)
     {
         for(int j=0;j<c;j++)
         {
-            if( mat2[i*r+j] != mat[i*r+j])
+            if( mat2[i*c+j] != mat[i*c+j])
                 return false;
         }
     }
@@ -174,10 +179,16 @@ int main()
     unsigned int Br=1024, Bc=1024;
     unsigned int Cr=1024, Cc=1024;
 
+    assert(Ac == Br);
+
     h_A = createMatrix(Ar, Ac);
+    assert(h_A != NULL);
     h_B = createMatrix(Br, Bc);
+    assert(h_B != NULL);
     h_C = createMatrix(Cr, Cc);
+    assert(h_C != NULL);
     h_D = createMatrix(Cr, Cc);
+    assert(h_D != NULL);
 
     initMatrix(h_A, Ar, Ac);
     initMatrix(h_B, Br, Bc);
@@ -190,7 +201,7 @@ int main()
     }
 
 
-    matMul(h_A, h_B, h_C, Ac, Ar, Br);
+    matMul(h_A, h_B, h_C, Ac, Ar, Bc);
 
     if(DEBUG){ 
         printf("Matrix C:\n");
@@ -206,19 +217,16 @@ int main()
     transferToDevice(h_B, d_B, Br, Bc);
     struct timeval st, et, dt;
     gettimeofday(&st,NULL);
-    pMatMul(d_A, d_B, d_C, Ac, Ar, Br);
+    pMatMul(d_A, d_B, d_C, Ac, Ar, Bc);
     gettimeofday(&et,NULL);
 
     timersub(&et, &st, &dt);
     printf("Time required %lf\n",dt.tv_sec * 1000.0 + dt.tv_usec/1000.0);
     transferFromDevice(h_D, d_C, Cr, Cc);
 
-    cudaFree(d_A);
-    cudaFree(d_B);
-    cudaFree(d_C);
 
     if(DEBUG){
-        printf("Matrix C:\n");
+        printf("Matrix D:\n");
         printMat(h_D, Cr, Cc);
     }
 
@@ -227,8 +235,12 @@ int main()
     else
         printf("Failed !! :( \n");
 
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
     destroyMAtrix(h_A);
     destroyMAtrix(h_B);
+    destroyMAtrix(h_D);
     destroyMAtrix(h_C);
     return 0;
 }
