@@ -140,7 +140,7 @@ void matMulKernel(float *A, float *B, float *C, int Ac, int Ar, int Bc)
 
 void pMatMul(float *A,float *B,float *C, int Ac, int Ar, int Bw)
 {
-    dim3 gridProp(ceil(Ac/TILE_WIDTH),ceil(Ar/TILE_WIDTH),1);
+    dim3 gridProp(ceil(Bw/TILE_WIDTH), ceil(Ar/TILE_WIDTH), 1);
     dim3 blockProp(TILE_WIDTH,TILE_WIDTH,1);
     matMulKernel<<<gridProp,blockProp>>>(A, B, C, Ac, Ar, Bw);
 }
