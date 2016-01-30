@@ -12,9 +12,14 @@ li* TODO Step 2. MAtrix dimensions are arbitary size
 #include<errno.h>
 
 #define DEBUG 0
-#define TILE_WIDTH 16
 #define VAL_LIMIT 10
+#ifndef TILE_WIDTH
+#define TILE_WIDTH 16
+#endif
+
+#ifndef MAT_DIM
 #define MAT_DIM 1024 
+#endif
 
 cudaError_t cuerr;
 
@@ -241,8 +246,17 @@ int main()
 
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milli, start, stop);
-    printf("Time required for parallel execution %f\n",milli);
-    
+    printf("Time required for (Configuration %d TILE_WIDTH and %d MAT_DIM) parallel \
+    execution %f\n",TILE_WIDTH,MAT_DIM,milli);
+    #if defined(TILE_WIDTH) && defined(MAT_DIM)
+        char cmd[1024];
+        char vals[256];
+        sprintf(vals,"%d\t%d\t%f",TILE_WIDTH,MAT_DIM,milli);
+        strcpy(cmd,"echo \"");
+        strcat(cmd,vals);
+        strcat(cmd,"\" >>res.data");
+        system(cmd);
+    #endif
     if(DEBUG)
     {
         printf("Matrix C:\n");
