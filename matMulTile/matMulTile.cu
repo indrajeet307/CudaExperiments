@@ -1,8 +1,9 @@
 /*
  * Tiled version of matrix multiplication
  * Sequential Matrix multiplication
- * TODO Step 1. Matrix dimensions are multiples of TILE_WIDTH
-li* TODO Step 2. MAtrix dimensions are arbitary size
+ * TODO Step 1. Matrix dimensions are multiples of TILE_WIDTH [DONE]
+ * TODO Step 1.a make each thread do more work
+ * TODO Step 2. MAtrix dimensions are arbitary size
  */
 #include<stdio.h>
 #include<assert.h>
@@ -13,6 +14,7 @@ li* TODO Step 2. MAtrix dimensions are arbitary size
 
 #define DEBUG 0
 #define VAL_LIMIT 10
+ // TILE_WIDTH and MAT_DIM can be given at compile time check Makefile
 #ifndef TILE_WIDTH
 #define TILE_WIDTH 16
 #endif
@@ -23,6 +25,14 @@ li* TODO Step 2. MAtrix dimensions are arbitary size
 
 cudaError_t cuerr;
 
+/*
+*	@DESC   : Allocate memory a linear aare of dimension r*c 
+*	@PRAM   : number of rows and columns
+*	@RETURN : address of the allocated memory
+*	@SEE    :  
+*	@TODO   :  
+*	
+*/
 float *createMartrix(int r, int c)
 {
     float * temp;
@@ -32,11 +42,27 @@ float *createMartrix(int r, int c)
     return temp;
 }
 
+/*
+*	@DESC   : Free the linear array memory
+*	@PRAM   : pointer to the array
+*	@RETURN : nothing
+*	@SEE    :  
+*	@TODO   :  
+*	
+*/
 void destroyMAtrix(float *m)
 {
     free(m);
 }
 
+/*
+*	@DESC   : Initialize matrix with some random values
+*	@PRAM   : pointer to the matrix and its dimensions
+*	@RETURN : nothing
+*	@SEE    :  
+*	@TODO   :  
+*	
+*/
 void initMatrix(float *m, int r, int c)
 {
     for( int i=0; i<r; i++)
@@ -48,6 +74,15 @@ void initMatrix(float *m, int r, int c)
     }
 }
 
+/*
+*	@DESC   : Sequential multiplication of matrix A and B result sotred in C
+*	@PRAM   : host pointer to matrices A, B, and C dimensions of matrix C  and common
+*           : dimension of matrix A,B
+*	@RETURN : nothing
+*	@SEE    :
+*	@TODO   :
+*	
+*/
 void matMul(float *A, float *B, float *C, int Ac, int Ar, int Bc) // Br == Ac
 {
     for( int i=0; i<Ar; i++)
@@ -107,6 +142,14 @@ void transferToDevice(float *hostptr, float *deviceptr, int r, int c)
     }
 }
 
+/*
+ *	@PRAM   : Host pointer, Device pointer, Number of rows and columns
+ *	@RETURN : Nothing
+ *	@DESC   : Copies data from device pointer to host pointer
+ *	@SEE    :  
+ *	@TODO   :  
+ *	
+ */
 void transferFromDevice(float *hostptr, float *deviceptr, int r, int c)
 {
     int size = sizeof(float) * r*c;
@@ -119,6 +162,15 @@ void transferFromDevice(float *hostptr, float *deviceptr, int r, int c)
     }
 }
 
+/*
+*	@DESC   : Multiplies matrix A with matrix B and stores output in C
+*	@PRAM   : device pointers matrix A, matrix B, matrix C, dimensions of matrix C and
+*	comman dimension for matrix A and B
+*	@RETURN : Nothing
+*	@SEE    : Tiled matrix multiplication
+*	@TODO   : A detailed description
+*	
+*/
 __global__ 
 void matMulKernel(float *A, float *B, float *C, int Ac, int Ar, int Bc)
 {
@@ -149,7 +201,14 @@ void matMulKernel(float *A, float *B, float *C, int Ac, int Ar, int Bc)
     C[Crow*MAT_DIM +  Ccol] = sum;
 }
 
-
+/*
+*	@DESC   : Wrapper function to set kernel configuration and invoke the kernel
+*	@PRAM   : device pointers for matrix A, B, C, and dimensions for C
+*	@RETURN : nothing
+*	@SEE    :  
+*	@TODO   :  
+*	
+*/
 void pMatMul(float *A, float *B, float *C, int Ac, int Ar, int Bc)
 {
     dim3 gridprop(ceil(Bc/TILE_WIDTH), ceil(Ar/TILE_WIDTH), 1);
@@ -157,7 +216,14 @@ void pMatMul(float *A, float *B, float *C, int Ac, int Ar, int Bc)
     matMulKernel<<<gridprop,blockprop>>>(A, B, C, Ac, Ar, Bc);
 }
 
-
+/*
+*	@DESC   : Print the matrix
+*	@PRAM   : host pointer to the matrix and its dimensions
+*	@RETURN : nothing   
+*	@SEE    :  
+*	@TODO   : 
+*	
+*/
 void printMat(float *A, int r, int c)
 { for( int i=0; i<r; i++)
     {
@@ -169,6 +235,14 @@ void printMat(float *A, int r, int c)
     }
 }
 
+/*
+*	@DESC   : Check if the two given matrices are equal
+*	@PRAM   : host matrix pointer A, B and their dimensions
+*	@RETURN : true if matrices are equal else false
+*	@SEE    :  
+*	@TODO   :  
+*	
+*/
 bool check(float *A, float *B, int r, int c)
 {
     for( int i=0; i<r*c; i++)
