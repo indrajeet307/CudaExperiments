@@ -6,6 +6,7 @@
 #include<cuda.h>
 #include<errno.h>
 #include<assert.h>
+#include<sys/time.h>
 #define DEBUG 0
 #if not defined(DEBUG)
 #define MAX_VAL 800
@@ -14,10 +15,11 @@
 #else
 #define MAX_VAL 10
 #define ARR_SIZE (4096*4096)
-#define MASK_SIZE (11)
+#define MASK_SIZE (111)
 #endif
 #define BLOCK_WIDTH 512
 cudaError_t err;
+__constant__ float cuMASK[MASK_SIZE];
 
 float* createArray(int size)
 {
@@ -95,7 +97,7 @@ void conv(float *inarr, float *mask, float *outarr, int arrsize, int masksize)
 }
 
     __global__
-void convKernel(float *inarr, float *mask, float *outarr, int arrsize, int masksize)
+void convKernel(float *inarr, float *outarr, int arrsize, int masksize)
 {
     int in = blockDim.x * blockIdx.x + threadIdx.x;
     if( in < arrsize)
@@ -106,20 +108,20 @@ void convKernel(float *inarr, float *mask, float *outarr, int arrsize, int masks
         {
             if( in-len+i >=0 && in-len+i < arrsize)
             {
-                sum += mask[i] * inarr[in-len+i];
+                sum += cuMASK[i] * inarr[in-len+i];
             }
         }
         outarr[in] = sum;
     }
 }
 
-void pconv(float *inarr, float *mask, float *outarr, int arrsize, int masksize)
+void pconv(float *inarr, float *outarr, int arrsize, int masksize)
 {
     dim3 gridProp(ceil(arrsize/BLOCK_WIDTH), 1, 1);
     //dim3 gridProp(1, 1, 1);
     dim3 blockProp(BLOCK_WIDTH, 1, 1);
     err = cudaSuccess;
-    convKernel<<<gridProp,blockProp>>>(inarr, mask, outarr, arrsize, masksize);
+    convKernel<<<gridProp,blockProp>>>(inarr, outarr, arrsize, masksize);
     if (err != cudaSuccess)
     {
         fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(err));
@@ -151,11 +153,12 @@ bool check(float *arr, float *arr2, int size)
 int main()
 {
     float *in, *out, *mask, *h_out;
-    float *d_in, *d_out, *d_mask;
+    float *d_in, *d_out;
     
     int arrsize = ARR_SIZE;
     int masksize = MASK_SIZE;
     cudaEvent_t start, stop;
+    timeval startseq, stopseq, diffseq;
     float milli;
 
     cudaEventCreate(&start);
@@ -169,7 +172,6 @@ cudaEventCreate(&stop);
 
     createArrayDevice(&d_in, arrsize);
     createArrayDevice(&d_out, arrsize);
-    createArrayDevice(&d_mask, masksize);
 
     initArray(in,arrsize);
     initArray(h_out,arrsize);
@@ -177,9 +179,21 @@ cudaEventCreate(&stop);
 
     transferToDevice(in, d_in, arrsize);
     transferToDevice(h_out, d_out, arrsize);
-    transferToDevice(mask, d_mask,masksize);
+    err = cudaSuccess;
+    err = cudaMemcpyToSymbol(cuMASK,mask, sizeof(float)*masksize);
+    if(err != cudaSuccess)
+    {
+        fprintf(stderr, "#Error %s, %d.\n%s.", __FILE__, __LINE__, cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
 
+    gettimeofday(&startseq,NULL);
     conv(in, mask, out, arrsize, masksize);
+    gettimeofday(&stopseq,NULL);
+
+    timersub(&stopseq,&startseq,&diffseq);
+    printf("Time required for (Configuration %d ARR_SIZE and %d BLOCK_WIDTH) sequential \
+execution %f\n",ARR_SIZE,BLOCK_WIDTH,(float)(diffseq.tv_sec*1000)+(diffseq.tv_usec/1000));
     if(DEBUG)
     {
         printf("This is Input Array : ");
@@ -192,7 +206,7 @@ cudaEventCreate(&stop);
         printArray(out, arrsize);
     } 
     cudaEventRecord(start);
-    pconv(d_in, d_mask, d_out, arrsize, masksize);
+    pconv(d_in, d_out, arrsize, masksize);
     cudaEventRecord(stop);
 
     transferFromDevice(h_out, d_out, arrsize);
@@ -201,16 +215,15 @@ cudaEventCreate(&stop);
 
     cudaEventElapsedTime(&milli, start, stop);
     printf("Time required for (Configuration %d ARR_SIZE and %d BLOCK_WIDTH) parallel \
-    execution %f\n",ARR_SIZE,BLOCK_WIDTH,milli);
+execution %f\n",ARR_SIZE,BLOCK_WIDTH,milli);
 
     if(check(out, h_out, arrsize))
-        printf("Yes");
+        printf("Yes\n");
     else
-        printf("No");
+        printf("No\n");
 
     cudaFree(d_in);
     cudaFree(d_out);
-    cudaFree(d_mask);
 
     free(h_out);
     free(in);
