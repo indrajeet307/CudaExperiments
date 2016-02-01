@@ -77,7 +77,7 @@ void initMatrix(float *m, int r, int c)
 /*
 *	@DESC   : Sequential multiplication of matrix A and B result sotred in C
 *	@PRAM   : host pointer to matrices A, B, and C dimensions of matrix C  and common
-*           : dimension of matrix A,B
+*           : dimension of matrix A, B
 *	@RETURN : nothing
 *	@SEE    :
 *	@TODO   :
@@ -116,7 +116,7 @@ void createMatrixDevice(float **m, int r, int c)
     cuerr = cudaMalloc(m, size); 
     if (cuerr != cudaSuccess)
     {
-        fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(cuerr));
+        fprintf(stderr, "%s, %d.\n %s.", __FILE__, __LINE__, cudaGetErrorString(cuerr));
         exit(EXIT_FAILURE);
     }
 }
@@ -133,11 +133,11 @@ void transferToDevice(float *hostptr, float *deviceptr, int r, int c)
 {
     int size = sizeof(float) * r*c;
     cuerr = cudaSuccess;
-    cuerr = cudaMemcpy(deviceptr,hostptr,size,cudaMemcpyHostToDevice);
+    cuerr = cudaMemcpy(deviceptr, hostptr, size, cudaMemcpyHostToDevice);
     if (cuerr != cudaSuccess)
     {
-        //fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(err));
-        fprintf(stderr,"%s, %d.\n %s",__FILE__,__LINE__,cudaGetErrorString(cuerr));
+        //fprintf(stderr, "%s, %d.\n %s.", __FILE__, __LINE__, cudaGetErrorString(err));
+        fprintf(stderr, "%s, %d.\n %s", __FILE__, __LINE__, cudaGetErrorString(cuerr));
         exit(EXIT_FAILURE);
     }
 }
@@ -154,10 +154,10 @@ void transferFromDevice(float *hostptr, float *deviceptr, int r, int c)
 {
     int size = sizeof(float) * r*c;
     cuerr = cudaSuccess;
-    cuerr = cudaMemcpy(hostptr,deviceptr,size,cudaMemcpyDeviceToHost);
+    cuerr = cudaMemcpy(hostptr, deviceptr, size, cudaMemcpyDeviceToHost);
     if (cuerr != cudaSuccess)
     {
-        fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(cuerr));
+        fprintf(stderr, "%s, %d.\n %s.", __FILE__, __LINE__, cudaGetErrorString(cuerr));
         exit(EXIT_FAILURE);
     }
 }
@@ -213,7 +213,7 @@ void pMatMul(float *A, float *B, float *C, int Ac, int Ar, int Bc)
 {
     dim3 gridprop(ceil(Bc/TILE_WIDTH), ceil(Ar/TILE_WIDTH), 1);
     dim3 blockprop(TILE_WIDTH, TILE_WIDTH, 1);
-    matMulKernel<<<gridprop,blockprop>>>(A, B, C, Ac, Ar, Bc);
+    matMulKernel<<<gridprop, blockprop>>>(A, B, C, Ac, Ar, Bc);
 }
 
 /*
@@ -229,7 +229,7 @@ void printMat(float *A, int r, int c)
     {
         for( int j=0; j<c; j++)
         {
-            printf("%3.2f\t",A[ i*c +j]);
+            printf("%3.2f\t", A[ i*c +j]);
         }
         printf("\n");
     }
@@ -321,14 +321,14 @@ int main()
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milli, start, stop);
     printf("Time required for (Configuration %d TILE_WIDTH and %d MAT_DIM) parallel \
-    execution %f\n",TILE_WIDTH,MAT_DIM,milli);
+    execution %f\n", TILE_WIDTH, MAT_DIM, milli);
     #if defined(TILE_WIDTH) && defined(MAT_DIM)
         char cmd[1024];
         char vals[256];
-        sprintf(vals,"%d\t%d\t%f",TILE_WIDTH,MAT_DIM,milli);
-        strcpy(cmd,"echo \"");
-        strcat(cmd,vals);
-        strcat(cmd,"\" >>res.data");
+        sprintf(vals, "%d\t%d\t%f", TILE_WIDTH, MAT_DIM, milli);
+        strcpy(cmd, "echo \"");
+        strcat(cmd, vals);
+        strcat(cmd, "\" >>res.data");
         system(cmd);
     #endif
     if(DEBUG)

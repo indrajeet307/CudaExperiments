@@ -51,10 +51,10 @@ void initArray(float * arr, int size)
 void createArrayDevice(float **arr, int size)
 {
     err = cudaSuccess;
-    err = cudaMalloc(arr,size*sizeof(float));
+    err = cudaMalloc(arr, size*sizeof(float));
     if(err != cudaSuccess)
     {
-        fprintf(stderr, "#Error %s, %d.\n%s.",__FILE__,__LINE__,cudaGetErrorString(err));
+        fprintf(stderr, "#Error %s, %d.\n%s.", __FILE__, __LINE__, cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
 }
@@ -62,7 +62,7 @@ void createArrayDevice(float **arr, int size)
 void transferToDevice(float *hostptr, float *deviceptr, int size)
 {
     err = cudaSuccess;
-    err = cudaMemcpy(deviceptr, hostptr, sizeof(float)*size,cudaMemcpyHostToDevice);
+    err = cudaMemcpy(deviceptr, hostptr, sizeof(float)*size, cudaMemcpyHostToDevice);
     if(err != cudaSuccess)
     {
         fprintf(stderr, "#Error %s, %d.\n%s.", __FILE__, __LINE__, cudaGetErrorString(err));
@@ -99,17 +99,30 @@ void conv(float *inarr, float *mask, float *outarr, int arrsize, int masksize)
     __global__
 void convKernel(float *inarr, float *outarr, int arrsize, int masksize)
 {
-    int in = blockDim.x * blockIdx.x + threadIdx.x;
+    __shared__ float localIn[BLOCK_WIDTH+MASK_SIZE-1];
+    int tx = threadIdx.x; int bx = blockIdx.x;
+    int bs = blockDim.x;
+    int in = bs* bx + tx;
+        int len = MASK_SIZE/2;
     if( in < arrsize)
     {
-        int len = masksize/2;
+        int halo_index_right = (bx +1)* bs + tx;
+        if( tx < len)
+        {
+            localIn[ tx + (BLOCK_WIDTH + len) ] = (halo_index_right >= arrsize) ? 0 : inarr[halo_index_right] ;
+        }
+        int halo_index_left = (bx -1) * bs + tx;
+        if( tx >= blockDim.x - len)
+        {
+            localIn[ tx - (BLOCK_WIDTH-len) ] = (halo_index_left < 0) ? 0 : inarr[halo_index_left];
+        }
+        localIn[tx+len] = inarr[in];
+        __syncthreads();
+
         float sum = 0;
         for( int i=0; i<masksize; i++)
         {
-            if( in-len+i >=0 && in-len+i < arrsize)
-            {
-                sum += cuMASK[i] * inarr[in-len+i];
-            }
+            sum += cuMASK[i] * localIn[tx+i];
         }
         outarr[in] = sum;
     }
@@ -121,10 +134,10 @@ void pconv(float *inarr, float *outarr, int arrsize, int masksize)
     //dim3 gridProp(1, 1, 1);
     dim3 blockProp(BLOCK_WIDTH, 1, 1);
     err = cudaSuccess;
-    convKernel<<<gridProp,blockProp>>>(inarr, outarr, arrsize, masksize);
+    convKernel<<<gridProp, blockProp>>>(inarr, outarr, arrsize, masksize);
     if (err != cudaSuccess)
     {
-        fprintf(stderr,"%s, %d.\n %s.",__FILE__,__LINE__,cudaGetErrorString(err));
+        fprintf(stderr, "%s, %d.\n %s.", __FILE__, __LINE__, cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
 }
@@ -133,7 +146,7 @@ void printArray(float *arr, int size)
 {
     for( int i=0; i<size; i++)
     {
-        printf("%2.4f  ",arr[i]);
+        printf("%2.4f  ", arr[i]);
     }
 }
 
@@ -173,27 +186,27 @@ cudaEventCreate(&stop);
     createArrayDevice(&d_in, arrsize);
     createArrayDevice(&d_out, arrsize);
 
-    initArray(in,arrsize);
-    initArray(h_out,arrsize);
-    initArray(mask,masksize);
+    initArray(in, arrsize);
+    initArray(h_out, arrsize);
+    initArray(mask, masksize);
 
     transferToDevice(in, d_in, arrsize);
-    transferToDevice(h_out, d_out, arrsize);
+
     err = cudaSuccess;
-    err = cudaMemcpyToSymbol(cuMASK,mask, sizeof(float)*masksize);
+    err = cudaMemcpyToSymbol(cuMASK, mask, sizeof(float)*masksize);
     if(err != cudaSuccess)
     {
         fprintf(stderr, "#Error %s, %d.\n%s.", __FILE__, __LINE__, cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
 
-    gettimeofday(&startseq,NULL);
+    gettimeofday(&startseq, NULL);
     conv(in, mask, out, arrsize, masksize);
-    gettimeofday(&stopseq,NULL);
+    gettimeofday(&stopseq, NULL);
 
-    timersub(&stopseq,&startseq,&diffseq);
+    timersub(&stopseq, &startseq, &diffseq);
     printf("Time required for (Configuration %d ARR_SIZE and %d BLOCK_WIDTH) sequential \
-execution %f\n",ARR_SIZE,BLOCK_WIDTH,(float)(diffseq.tv_sec*1000)+(diffseq.tv_usec/1000));
+execution %f\n", ARR_SIZE, BLOCK_WIDTH, (float)(diffseq.tv_sec*1000)+(diffseq.tv_usec/1000));
     if(DEBUG)
     {
         printf("This is Input Array : ");
@@ -215,7 +228,7 @@ execution %f\n",ARR_SIZE,BLOCK_WIDTH,(float)(diffseq.tv_sec*1000)+(diffseq.tv_us
 
     cudaEventElapsedTime(&milli, start, stop);
     printf("Time required for (Configuration %d ARR_SIZE and %d BLOCK_WIDTH) parallel \
-execution %f\n",ARR_SIZE,BLOCK_WIDTH,milli);
+execution %f\n", ARR_SIZE, BLOCK_WIDTH, milli);
 
     if(check(out, h_out, arrsize))
         printf("Yes\n");
